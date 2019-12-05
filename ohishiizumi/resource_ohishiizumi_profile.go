@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
+	"os"
 
 	"github.com/hashicorp/terraform/helper/schema"
 )
@@ -21,14 +22,8 @@ func resourceOhishiizumiProfile() *schema.Resource {
 				Type:        schema.TypeString,
 				Description: "大石泉",
 				Required:    true,
+				ForceNew:    true,
 			},
-			//			"friends": {
-			//				Type:         schema.TypeMap,
-			//				Optional:     true,
-			//				Default:      make(map[string]interface{}),
-			//				Description:  "Variables to substitute",
-			//				ForceNew:     true,
-			//			},
 			"age": {
 				Type:        schema.TypeInt,
 				Description: "Path to the directory where the templated files will be written",
@@ -54,7 +49,7 @@ func resourceOhishiizumiProfileCreate(d *schema.ResourceData, meta interface{}) 
 		Height: height,
 	}
 
-	_, err := profile.Create()
+	err := profile.Create()
 	if err != nil {
 		return err
 	}
@@ -68,14 +63,72 @@ func resourceOhishiizumiProfileCreate(d *schema.ResourceData, meta interface{}) 
 }
 
 func resourceOhishiizumiProfileRead(d *schema.ResourceData, meta interface{}) error {
+	id := d.Id()
+
+	profile := &Profile{}
+	err := profile.Read(id)
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			d.SetId("")
+			return nil
+		}
+		return err
+	}
+
+	d.Set("name", profile.Name)
+	d.Set("age", profile.Age)
+	d.Set("height", profile.Height)
+
 	return nil
 }
 
 func resourceOhishiizumiProfileUpdate(d *schema.ResourceData, meta interface{}) error {
-	return nil
+	id := d.Id()
+
+	profile := &Profile{}
+	err := profile.Read(id)
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			d.SetId("")
+			return nil
+		}
+		return err
+	}
+
+	if d.HasChange("name") {
+		profile.Name = d.Get("name").(string)
+	}
+
+	if d.HasChange("age") {
+		profile.Age = d.Get("age").(int)
+	}
+
+	if d.HasChange("height") {
+		profile.Height = d.Get("height").(int)
+	}
+
+	err = profile.Update()
+	if err != nil {
+		return err
+	}
+
+	return resourceOhishiizumiProfileRead(d, meta)
 }
 
 func resourceOhishiizumiProfileDelete(d *schema.ResourceData, meta interface{}) error {
+	id := d.Id()
+	profile := &Profile{}
+	if err := profile.Delete(id); err != nil {
+		if os.IsNotExist(err) {
+			d.SetId("")
+			return nil
+		}
+		return err
+	}
+	d.SetId("")
+
 	return nil
 }
 
@@ -85,27 +138,62 @@ type Profile struct {
 	Height int    `json:"height"`
 }
 
-func (p *Profile) Create() (string, error) {
-	path := "ohishiizumi.json"
-
+func (p *Profile) Create() error {
 	body, err := json.MarshalIndent(p, "", "    ")
 	if err != nil {
-		return "", fmt.Errorf("to json failed")
+		return fmt.Errorf("to json failed")
 	}
+
+	path := p.calcID() + ".json"
 
 	err = ioutil.WriteFile(path, body, 0644)
 	if err != nil {
-		return "", fmt.Errorf("failed to write file")
+		return fmt.Errorf("failed to write file")
 	}
 
-	return string(body), nil
+	return nil
+}
+
+func (p *Profile) Read(id string) error {
+	path := id + ".json"
+
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return err
+	}
+
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(data, p)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *Profile) Update() error {
+	return p.Create()
+}
+
+func (p *Profile) Delete(id string) error {
+	path := id + ".json"
+
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *Profile) calcID() string {
 	h := fnv.New32a()
 	h.Write([]byte(p.Name))
 	return fmt.Sprintf("%d", h.Sum32())
-}
-
-func (p *Profile) Read() (string, error) {
 }
