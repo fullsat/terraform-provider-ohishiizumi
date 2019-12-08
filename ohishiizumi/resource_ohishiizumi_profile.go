@@ -10,28 +10,67 @@ import (
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
+// resource "hogehoge"に相当するもの
 func resourceOhishiizumiProfile() *schema.Resource {
 	return &schema.Resource{
+		// Create
+		//   リソースの作成
+		//   tfstateに書き込むためにResourceDataでSetする
+		//   IDは一意的なものをSetIdで設定する
 		Create: resourceOhishiizumiProfileCreate,
-		Read:   resourceOhishiizumiProfileRead,
+		// Read
+		//   引数から渡ってくるResourceDataに値をSetする
+		//   値は実際のリソースの値を見て設定する
+		Read: resourceOhishiizumiProfileRead,
+		// Update
+		//   Createと基本的には同様
+		//   HasChangeヘルパーなどを駆使して差分だけ適用するなどする
 		Update: resourceOhishiizumiProfileUpdate,
+		// Delete
+		//   リソースの削除
+		//   SetId("")として削除したことをterraformに伝える
+		//   ただし明示的に指定しなくても内部的に呼ばれているらしい
 		Delete: resourceOhishiizumiProfileDelete,
 
+		// resource "hogehoge" {
+		//    hogehoge = ここに書くものを定義していく
+		// }
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:        schema.TypeString,
-				Description: "大石泉",
+				Description: "Ohishi Izumi",
 				Required:    true,
 				ForceNew:    true,
 			},
-			"age": {
-				Type:        schema.TypeInt,
-				Description: "Path to the directory where the templated files will be written",
+			"type": {
+				Type:        schema.TypeString,
+				Description: "Cool or Cute or Passion",
 				Required:    true,
 			},
 			"height": {
 				Type:        schema.TypeInt,
-				Description: "Path to the directory where the templated files will be written",
+				Description: "Height",
+				Required:    true,
+			},
+			"weight": {
+				Type:        schema.TypeInt,
+				Description: "Weight",
+				Required:    true,
+			},
+			"body": {
+				Type:        schema.TypeMap,
+				Description: "body",
+				Required:    true,
+				Elem:        &schema.Schema{Type: schema.TypeInt},
+			},
+			"age": {
+				Type:        schema.TypeInt,
+				Description: "年齢",
+				Required:    true,
+			},
+			"birthday": {
+				Type:        schema.TypeString,
+				Description: "age",
 				Required:    true,
 			},
 		},
@@ -40,13 +79,31 @@ func resourceOhishiizumiProfile() *schema.Resource {
 
 func resourceOhishiizumiProfileCreate(d *schema.ResourceData, meta interface{}) error {
 	name := d.Get("name").(string)
+	idol_type := d.Get("type").(string)
 	age := d.Get("age").(int)
 	height := d.Get("height").(int)
+	weight := d.Get("weight").(int)
+	birthday := d.Get("birthday").(string)
+
+	body := d.Get("body").(map[string]interface{})
+	hip := body["hip"].(int)
+	waist := body["waist"].(int)
+	bust := body["hip"].(int)
+
+	threesize := &ThreeSize{
+		Bust:  bust,
+		Waist: waist,
+		Hip:   hip,
+	}
 
 	profile := &Profile{
-		Name:   name,
-		Age:    age,
-		Height: height,
+		Name:     name,
+		Age:      age,
+		Type:     idol_type,
+		Height:   height,
+		Weight:   weight,
+		Body:     *threesize,
+		Birthday: birthday,
 	}
 
 	err := profile.Create()
@@ -58,6 +115,11 @@ func resourceOhishiizumiProfileCreate(d *schema.ResourceData, meta interface{}) 
 	d.Set("name", name)
 	d.Set("age", age)
 	d.Set("height", height)
+	d.Set("type", idol_type)
+	d.Set("age", age)
+	d.Set("weight", weight)
+	d.Set("birthday", birthday)
+	d.Set("body", body)
 
 	return nil
 }
@@ -77,8 +139,12 @@ func resourceOhishiizumiProfileRead(d *schema.ResourceData, meta interface{}) er
 	}
 
 	d.Set("name", profile.Name)
-	d.Set("age", profile.Age)
+	d.Set("type", profile.Type)
 	d.Set("height", profile.Height)
+	d.Set("weight", profile.Weight)
+	d.Set("body", profile.Body)
+	d.Set("age", profile.Age)
+	d.Set("birthday", profile.Birthday)
 
 	return nil
 }
@@ -101,12 +167,31 @@ func resourceOhishiizumiProfileUpdate(d *schema.ResourceData, meta interface{}) 
 		profile.Name = d.Get("name").(string)
 	}
 
-	if d.HasChange("age") {
-		profile.Age = d.Get("age").(int)
+	if d.HasChange("type") {
+		profile.Age = d.Get("type").(int)
 	}
 
 	if d.HasChange("height") {
 		profile.Height = d.Get("height").(int)
+	}
+
+	if d.HasChange("weight") {
+		profile.Name = d.Get("weight").(string)
+	}
+
+	if d.HasChange("body") {
+		body := d.Get("body").(map[string]interface{})
+		profile.Body.Bust = body["bust"].(int)
+		profile.Body.Waist = body["waist"].(int)
+		profile.Body.Hip = body["hip"].(int)
+	}
+
+	if d.HasChange("age") {
+		profile.Age = d.Get("age").(int)
+	}
+
+	if d.HasChange("birthday") {
+		profile.Birthday = d.Get("birthday").(string)
 	}
 
 	err = profile.Update()
@@ -118,24 +203,23 @@ func resourceOhishiizumiProfileUpdate(d *schema.ResourceData, meta interface{}) 
 }
 
 func resourceOhishiizumiProfileDelete(d *schema.ResourceData, meta interface{}) error {
-	id := d.Id()
-	profile := &Profile{}
-	if err := profile.Delete(id); err != nil {
-		if os.IsNotExist(err) {
-			d.SetId("")
-			return nil
-		}
-		return err
-	}
-	d.SetId("")
-
-	return nil
+	return fmt.Errorf("大石泉ちゃんは何があろうが壊せない")
 }
 
 type Profile struct {
-	Name   string `json:"name"`
-	Age    int    `json:"age"`
-	Height int    `json:"height"`
+	Name     string    `json:"name"`
+	Type     string    `json:"type"`
+	Weight   int       `json:"weight"`
+	Height   int       `json:"height"`
+	Age      int       `json:"age"`
+	Birthday string    `json:"birthday"`
+	Body     ThreeSize `json:"body"`
+}
+
+type ThreeSize struct {
+	Bust  int `json:"bust"`
+	Waist int `json:"waist"`
+	Hip   int `json:"hip"`
 }
 
 func (p *Profile) Create() error {
